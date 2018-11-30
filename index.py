@@ -1,12 +1,16 @@
 from __future__ import print_function
 import boto3
 import decimal
-from flask import Flask
+from flask import Flask, session
 from flask import request
 from flask import render_template, flash
 from boto3.dynamodb.conditions import Key, Attr
 import os
 import base64
+import smtplib
+import email.utils
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import boto3
 
@@ -40,6 +44,8 @@ def index():
 def dashboard():
     username = request.form['Username']
     password = request.form['Password']
+    session['uname'] = username
+    session['pword'] = password
     dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://dynamodb.us-west-2.amazonaws.com")
     table = dynamodb.Table('User')
     response = table.scan()
@@ -57,6 +63,64 @@ def dashboard():
             return render_template("UserLogin.html")
     else:
         return render_template("UserLogin.html")
+
+@app.route('/sendemail', methods=['GET', 'POST'])
+def sendemail():
+    username = encode(key, session.get('uname', None))
+    dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://dynamodb.us-west-2.amazonaws.com")
+    table = dynamodb.Table('User')
+    response = table.query(
+        KeyConditionExpression=Key('UserName').eq(username)
+    )
+    for i in response['Items']:
+        doctemail = i['DoctEmailId']
+        familyemail = i['FamilyEId']
+    SENDER = 'linarodrigues13@gmail.com'
+    SENDERNAME = 'Natalina'
+    recip = []
+    recip.append(doctemail)
+    recip.append(familyemail)
+    USERNAME_SMTP = "AKIAIUDOTE7ZE65Z77ZA"
+    PASSWORD_SMTP = "AkXmgySC08d2WqiphfrDdtNzmqLEo7S114xSHRqT14b/"
+    HOST = "email-smtp.us-west-2.amazonaws.com"
+    PORT = 587
+    SUBJECT = 'Amazon SES Test (Python smtplib)'
+    BODY_TEXT = ("Amazon SES Test\r\n"
+                 "This email was sent through the Amazon SES SMTP "
+                 "Interface using the Python smtplib package."
+                 )
+    BODY_HTML = """<html>
+    <head></head>
+    <body>
+      <h1>Amazon SES SMTP Email Test</h1>
+      <p>This email was sent with Amazon SES using the
+        <a href='https://www.python.org/'>Python</a>
+        <a href='https://docs.python.org/3/library/smtplib.html'>
+        smtplib</a> library.</p>
+    </body>
+    </html>
+                """
+    for RECIPIENT in recip:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = SUBJECT
+        msg['From'] = email.utils.formataddr((SENDERNAME, SENDER))
+        msg['To'] = RECIPIENT
+        part1 = MIMEText(BODY_TEXT, 'plain')
+        part2 = MIMEText(BODY_HTML, 'html')
+        msg.attach(part1)
+        msg.attach(part2)
+        try:
+            server = smtplib.SMTP(HOST, PORT)
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(USERNAME_SMTP, PASSWORD_SMTP)
+            server.sendmail(SENDER, RECIPIENT, msg.as_string())
+            server.close()
+        except Exception as e:
+            print("Error: ", e)
+    return render_template("Dashboard.html")
+
 
 @app.route('/registerUser', methods=['POST'])
 def register_user():
