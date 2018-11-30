@@ -11,6 +11,7 @@ import smtplib
 import email.utils
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import secrets
 
 import boto3
 
@@ -33,19 +34,18 @@ def decode(key, enc):
         dec.append(dec_c)
     return "".join(dec)
 
-key = "hello"
+key = "----"
 
 @app.route('/')
 def index():
     return render_template("UserLogin.html")
 
 
-@app.route('/dashboard', methods=['POST'])
+@app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
     username = request.form['Username']
     password = request.form['Password']
     session['uname'] = username
-    session['pword'] = password
     dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://dynamodb.us-west-2.amazonaws.com")
     table = dynamodb.Table('User')
     response = table.scan()
@@ -75,28 +75,27 @@ def sendemail():
     for i in response['Items']:
         doctemail = i['DoctEmailId']
         familyemail = i['FamilyEId']
-    SENDER = 'linarodrigues13@gmail.com'
-    SENDERNAME = 'Natalina'
+        token = i['Token']
+        SENDERNAME = i['FirstName']
+    SENDER = '------'
     recip = []
     recip.append(doctemail)
     recip.append(familyemail)
-    USERNAME_SMTP = "------"
-    PASSWORD_SMTP = "-------"
+    USERNAME_SMTP = "-----"
+    PASSWORD_SMTP = "------"
     HOST = "email-smtp.us-west-2.amazonaws.com"
     PORT = 587
-    SUBJECT = 'Amazon SES Test (Python smtplib)'
-    BODY_TEXT = ("Amazon SES Test\r\n"
-                 "This email was sent through the Amazon SES SMTP "
-                 "Interface using the Python smtplib package."
-                 )
+    SUBJECT = str(SENDERNAME)+' view My Dashboard'
+    BODY_TEXT = ("My Health Dashboard")
     BODY_HTML = """<html>
     <head></head>
     <body>
-      <h1>Amazon SES SMTP Email Test</h1>
-      <p>This email was sent with Amazon SES using the
-        <a href='https://www.python.org/'>Python</a>
-        <a href='https://docs.python.org/3/library/smtplib.html'>
-        smtplib</a> library.</p>
+      <h1>My Health Dashboard</h1>
+      <p>
+      Username: """+str(username)+"""</br>
+      Link: <a href='http://127.0.0.1:5000/closedashboard1'>"""+str(username)+""" Dashboard's link </a></br>
+      Token: """+str(token)+"""
+        </p>
     </body>
     </html>
                 """
@@ -121,6 +120,38 @@ def sendemail():
             print("Error: ", e)
     return render_template("Dashboard.html")
 
+@app.route('/closedashboard1', methods=['Get'])
+def closedashboard1():
+    return render_template("Closelogin.html")
+
+@app.route('/closedashboard', methods=['Post'])
+def closedashboard():
+    username = request.form['Username']
+    email = request.form['Email']
+    token = request.form['Token']
+    dynamodb = boto3.resource('dynamodb', region_name='us-west-2',
+                              endpoint_url="http://dynamodb.us-west-2.amazonaws.com")
+    table = dynamodb.Table('User')
+    response = table.scan()
+    u=[]
+    e=[]
+    t=[]
+    for r in response['Items']:
+        u.append(r['UserName'])
+        e.append(r['DoctEmailId'])
+        e.append(r['FamilyEId'])
+        t.append(r['Token'])
+    if username in u:
+        if email in e:
+            if token in t:
+                return render_template("Dashboard1.html")
+            else:
+                return render_template("Closelogin.html")
+        else:
+            return render_template("Closelogin.html")
+    else:
+        return render_template("Closelogin.html")
+
 
 @app.route('/registerUser', methods=['POST'])
 def register_user():
@@ -138,6 +169,7 @@ def register_user():
     username = encode(key, uname)
     pword = request.form['password']
     password = encode(key, pword)
+    token = secrets.token_urlsafe(16)
 
     print("fName:", fname)
     dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://dynamodb.us-west-2.amazonaws.com")
@@ -156,7 +188,8 @@ def register_user():
             'DoctEmailId': demailid,
             'FamilyEId': familyid,
             'SecretCode': secretcode,
-            'ClientId': cid
+            'ClientId': cid,
+            'Token': token
         }
     )
     return render_template("UserLogin.html")
