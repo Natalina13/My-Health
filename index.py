@@ -80,8 +80,8 @@ def sendemail():
     recip = []
     recip.append(doctemail)
     recip.append(familyemail)
-    USERNAME_SMTP = "AKIAIUDOTE7ZE65Z77ZA"
-    PASSWORD_SMTP = "AkXmgySC08d2WqiphfrDdtNzmqLEo7S114xSHRqT14b/"
+    USERNAME_SMTP = "------"
+    PASSWORD_SMTP = "-------"
     HOST = "email-smtp.us-west-2.amazonaws.com"
     PORT = 587
     SUBJECT = 'Amazon SES Test (Python smtplib)'
